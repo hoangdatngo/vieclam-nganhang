@@ -19,24 +19,27 @@ The plan of record. Owned by the `cto` agent; no other agent edits this file.
 
 | Phase | Content | Tasks | Progress |
 |---|---|---|---|
-| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `██░░░░░░░░░░░░░░░░░░` 10% |
+| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `██░░░░░░░░░░░░░░░░░░` 11% |
 | **P1** — Data foundation | Remaining 11 banks, alerting, CI | 14 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P2** — Public site | List, search, filters, detail, coverage pages | 16 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P3** — Accounts | Auth, save jobs, follow banks | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P4** — Launch | Domain, deploy, analytics, health monitoring | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P5** — Observe | 30 days of real data; tune the guesses | 4 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 
-**Where the project actually is:** a git repository on `main` with one commit, holding the full
-specification set and one finished module — `lib/normalize.ts`, verified by 24 passing tests.
-`app/layout.tsx` has been localised. The database, the crawler, and every page do not exist yet.
+**Where the project actually is:** live at
+**[github.com/hoangdatngo/vieclam-nganhang](https://github.com/hoangdatngo/vieclam-nganhang)** —
+public, `main`, three commits, 42 files. It holds the full specification set and one finished
+module, `lib/normalize.ts`, verified by 24 passing tests. `app/layout.tsx` has been localised.
+The database, the crawler, and every page do not exist yet.
 
-**Waiting on you: [T-002](#t-002--repository-initialised-public-with-no-personal-data-in-it) needs a GitHub repository.** Everything
-local is done and the tree is verified clean. Create a **public** repo (suggested name
-`vieclam-nganhang`), then `git remote add origin <url> && git push -u origin main`.
+**Next task: [T-003](#t-003--application-shell-replaces-the-create-next-app-scaffold)** — strip the starter page and apply the
+design tokens. [T-004](#t-004--shared-type-definitions) (shared types) is also unblocked and can be done in either order.
 
-**Next buildable tasks, in order:** [T-003](#t-003--application-shell-replaces-the-create-next-app-scaffold) (strip the starter
-page, apply design tokens) and [T-004](#t-004--shared-type-definitions) (shared types). Both list T-002 as a dependency,
-which is satisfied by the local repository existing — neither needs the push.
+**Outstanding housekeeping, not a task:** the working directory is still
+`C:\Users\LENOVO\CV_reviewer`, a leftover name from an unrelated earlier idea (PRD §1). Renaming it
+to `vieclam-nganhang` requires Claude Code to be closed, because the running session holds the
+directory open. `C:\Users\LENOVO\finish-t002.ps1` does it. Purely cosmetic — the repository, its
+remote, and its name are already correct.
 
 ---
 
@@ -98,7 +101,7 @@ OQ-7 → promoted to FR-29, OQ-8 (withdrawn), OQ-9 → Option B, AC-11.2 amended
 **Exit gate (PRD §17):** two banks — one static, one JavaScript-rendered — return real jobs on
 two consecutive scheduled runs with no manual intervention.
 
-**Progress:** `██░░░░░░░░░░░░░░░░░░` 10% · 20 tasks
+**Progress:** `██░░░░░░░░░░░░░░░░░░` 11% · 20 tasks
 
 This phase builds almost the entire skeleton and only two banks. That is deliberate: everything
 here is paid for once and reused thirteen times.
@@ -123,12 +126,10 @@ NFD-and-strip fold silently fails on it — which is why this was the first comm
 ---
 
 ### T-002 · Repository initialised, public, with no personal data in it
-`blocked` · `█████████████████░░░` 83%
+`done` · `████████████████████` 100%
 
 **Spec:** TECHNICAL_DESIGN §8.5 · ADR-0003 · F-14
 **Depends on:** —
-**Blocked on:** the GitHub repository does not exist. `gh` is not installed on this machine and no
-remote is configured. Every local step is done and verified; only the push remains.
 
 **The only irreversible task in P0.** The repository must be public for the Actions free-tier
 minutes policy, and a file committed once and later removed stays in history permanently. Do
@@ -138,9 +139,12 @@ this before anything else is committed.
 - [x] `.gitignore` covers `CV_folder/` and `.env*`
 - [x] `.gitignore` also covers `*.pdf`
 - [x] `git init` on `main`; initial commit `b43ae82`, 42 files, working tree clean
-- [ ] Pushed to a **public** GitHub repository
+- [x] Pushed to a **public** GitHub repository —
+      [hoangdatngo/vieclam-nganhang](https://github.com/hoangdatngo/vieclam-nganhang),
+      visibility `PUBLIC` confirmed via the API, not assumed
 - [x] `git ls-files` inspected: zero matches for `*.pdf`, `CV_folder`, `.env`, `agent-memory`,
-      `node_modules`, `*.tsbuildinfo` across all 42 tracked files
+      `node_modules`, `*.tsbuildinfo` across all 42 tracked files — **re-verified against the
+      remote tree after the push**, so the guarantee covers what GitHub actually holds
 
 **Finding — personal data that is not a PDF.** `.claude/agent-memory/` holds agent working memory,
 including `user-profile.md` files describing the maintainer's job-search status and circumstances.
