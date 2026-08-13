@@ -86,3 +86,107 @@ implementation task.
    must become `vi`; an incorrect `lang` also degrades screen-reader pronunciation, which the
    design guidelines treat as a WCAG obligation. Not fixed here — belongs to the layout task, and
    this entry does not silently expand its own scope.
+
+---
+
+## 2026-08-13 — Repository hygiene, the F-14 guard (T-002)
+
+**Code under test:** `.gitignore` and the git index itself. T-002 produced no application code —
+its deliverable is a property of the repository, and that property is what is tested.
+**Test file:** `test/repo-hygiene.test.ts`
+**Spec:** `docs/TECHNICAL_DESIGN.md` §8.5 (Secrets and the CV problem) · `docs/adr/0003` (the
+repository is public) · failure mode **F-14**
+
+F-14 is the only row in the §11 failure table whose recovery column reads *"Prevention only —
+there is no clean recovery from a pushed commit"*. §8.5 answers it with three independent layers,
+and each is asserted separately below. The tests read **git's index, not the working tree**: the
+question is never "is the file on disk?" but "would a push publish it?"
+
+### The detectors fire on known-bad input
+
+Asserted first, because a suite where every pattern matches nothing is indistinguishable from a
+clean repository. Each detector is checked in both directions.
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 1–6 | `*.pdf` flags `CV_folder/dat-cv.pdf`, `docs/scan.PDF`, `resume.pdf`; allows `pdf-notes.md` and two source paths | F-14 — case-insensitivity matters, `.PDF` is a real filename | pass |
+| 7–10 | `CV_folder/` flags the directory at root and nested; allows `docs/cv-policy.md` | §8.5 layer 1 bypassed by `git add -f` | pass |
+| 11–17 | `.env*` flags `.env`, `.env.local`, `.env.production`, `app/.env`; **allows `next-env.d.ts`** | §8.5 — `next-env.d.ts` is the obvious false positive and it is a tracked file, so a naive `\.env` substring test would fail the build forever | pass |
+| 18–20 | `.claude/agent-memory/` flags `user-profile.md`; allows `.claude/agents/` and `.claude/skills/` | T-002 finding, below | pass |
+| 21 | The secret-assignment pattern flags `SUPABASE_SERVICE_ROLE_KEY=eyJ…` and `: "sb_secret_123"`, but not prose or a markdown table cell naming the key | §8.5 secrets table | pass |
+| 22 | The connection-string pattern flags `postgresql://user:pw@host/db`, but not `postgresql://localhost:5432/postgres` or prose naming `DATABASE_URL` | §8.5 — credentials, not mentions | pass |
+
+### §8.5 layer 1 — personal files live outside the repository
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 23 | No `CV_folder/` exists inside the repository directory | §8.5 step 1 — *"this is the actual fix; the rest is belt and braces"*. Asserted against the filesystem rather than the index, because layers 2 and 3 only catch a mistake that layer 1 already permitted | pass |
+
+### §8.5 layer 2 — `.gitignore` covers the forbidden patterns
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 24 | `.gitignore` contains `CV_folder` | §8.5 step 2, named literally | pass |
+| 25 | …contains `*.pdf` | §8.5 step 2 | pass |
+| 26 | …contains `.env*` (which subsumes `.env.local`) | §8.5 step 2 | pass |
+| 27 | …contains `.claude/agent-memory` | T-002 finding | pass |
+
+### §8.5 layer 3 — nothing forbidden is tracked by git
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 28 | No tracked path matches `*.pdf` | §8.5 step 3 — the predicate is quoted verbatim in the spec | pass |
+| 29 | No tracked path matches `CV_folder/` | §8.5 step 3 | pass |
+| 30 | No tracked path matches `.env*` | §8.5 step 3 | pass |
+| 31 | No tracked path under `.claude/agent-memory/` | T-002 finding | pass |
+| 32 | `.claude/agents/cto.md` and `.claude/skills/test-task/SKILL.md` **are** still tracked | Inverse guard. Ignoring all of `.claude/` would satisfy cases 28–31 while silently deleting the four agents and this skill from the repository — a "fix" that passes every test and destroys project assets | pass |
+
+### §8.5 secrets table — nothing secret is committed
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 33 | No tracked **source** file references `SUPABASE_SERVICE_ROLE_KEY` | §8.5: *"nowhere — neither component needs it"* | pass |
+| 34 | No tracked file assigns it a value | §8.5 — the leak that matters is the value, not the name | pass |
+| 35 | No tracked file contains a credential-bearing Postgres URL | §8.5 — `DATABASE_URL` lives in an Actions secret, `DATABASE_URL_POOLED` in Vercel env | pass |
+
+### Not covered, and why
+
+- **Repository visibility.** That the repo is `PUBLIC` was verified manually against the GitHub
+  API during T-002, not automated. A unit test that makes a network call to GitHub is a flake and
+  needs credentials CI would not have. If this ever needs enforcing, it belongs in a workflow step,
+  not in vitest.
+- **Git history.** These tests inspect the **current index only**. A file committed and later
+  removed would pass every case here while remaining public forever — which is precisely F-14.
+  Acceptable today because the repository has four commits, all created during T-002, and the
+  index was verified clean before each. It stops being acceptable the moment history grows;
+  the real answer then is a history scanner (`gitleaks`, `git log --diff-filter=A`), and that is
+  **not** what this file does.
+- **CI enforcement.** `scripts/check-forbidden-files.ts` (T-033) does not exist yet. Until it does,
+  these assertions only run when someone runs `npm test` — they do not block a push.
+- **Whether git honours `.gitignore`.** Case 24–27 assert the patterns are present, not that git
+  obeys them. That is git's job, and layer 3 catches the outcome regardless.
+- **Binary file contents.** The secret scan skips images, fonts and `package-lock.json`. A secret
+  hidden in a PNG would not be found — judged not worth the runtime.
+
+**Result:** 59 passed, 0 failed (35 new here, 24 pre-existing in `lib/normalize.test.ts`) ·
+`npm test` (vitest 4.1.10, 1.26s) · `tsc --noEmit` exit 0
+
+### Findings
+
+1. **The spec's word "nowhere" is ambiguous, and the first draft of this test read it the wrong
+   way.** `SUPABASE_SERVICE_ROLE_KEY | nowhere` (§8.5 secrets table) was initially tested as "no
+   mention in any tracked file". That **failed** — on `tasks.md` and `docs/TECHNICAL_DESIGN.md`,
+   both of which name the key *in order to forbid it*. The repository was correct and the test was
+   wrong. Resolved as the two properties §8.5 actually protects: no source file references the key,
+   and no file assigns it a value. **T-033 must resolve this the same way**, or
+   `check-forbidden-files.ts` will fail CI on the very documents that state the rule.
+2. **`next-env.d.ts` is a live false-positive trap for the `.env` pattern.** It is tracked, and a
+   substring test for `.env` matches it. Any implementation of T-033 that uses `contains('.env')`
+   rather than an anchored pattern will fail the build on a clean checkout. Now covered by case 17.
+3. **`next build` fails inside a git worktree whose `node_modules` is a junction** —
+   `TurbopackInternalError: Symlink [project]/node_modules is invalid, it points out of the
+   filesystem root`. Tooling artifact, not a code defect; `vitest` and `tsc` are unaffected. Worth
+   knowing because the project's CI must run `next build` before `typecheck` (finding 1 of the
+   entry above), so builds should be verified in a real checkout rather than a linked worktree.
+4. No defect was found in the repository itself. All three §8.5 layers hold, and the remote tree
+   was independently confirmed clean after the push.
