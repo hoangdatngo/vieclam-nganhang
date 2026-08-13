@@ -1,0 +1,55 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# personal files — never commit to a public repository
+# This repository is public (ADR-0003). A file committed once and later removed
+# stays in history forever, so these patterns are belt-and-braces behind the real
+# fix: keeping personal files outside the repository directory entirely.
+# Enforced automatically by scripts/check-forbidden-files.ts in CI (T-033).
+/CV_folder
+*.pdf
+
+# Agent working memory — contains personal profile notes about the maintainer
+# (job-search status, circumstances). Machine-local state, not a project asset.
+# The agent definitions and skills in .claude/ ARE committed; only memory is not.
+/.claude/agent-memory/
+/.claude/settings.local.json
