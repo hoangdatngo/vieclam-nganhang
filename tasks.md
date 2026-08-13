@@ -14,12 +14,12 @@ The plan of record. Owned by the `cto` agent; no other agent edits this file.
 ## Overall progress
 
 ```
-█░░░░░░░░░░░░░░░░░░░  4%
+█░░░░░░░░░░░░░░░░░░░  6%
 ```
 
 | Phase | Content | Tasks | Progress |
 |---|---|---|---|
-| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `███░░░░░░░░░░░░░░░░░` 15% |
+| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `████░░░░░░░░░░░░░░░░` 20% |
 | **P1** — Data foundation | Remaining 11 banks, alerting, CI | 14 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P2** — Public site | List, search, filters, detail, coverage pages | 16 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P3** — Accounts | Auth, save jobs, follow banks | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
@@ -32,12 +32,13 @@ public, `main`, three commits, 42 files. It holds the full specification set and
 module, `lib/normalize.ts`, verified by 24 passing tests. `app/layout.tsx` has been localised.
 The database, the crawler, and every page do not exist yet.
 
-The design system is live: `app/globals.css` carries the §8 theme, the shell has its landmarks and
-skip link, and 116 tests guard both the repository and the design-system bans.
+The design system is live, and `lib/types.ts` now holds the crawler/website contract. 145 tests
+guard the repository, the design-system bans, the normaliser and the type contract.
 
-**Next task: [T-004](#t-004--shared-type-definitions)** — the shared type definitions, which
-[T-008](#t-008--database-supabase-project-migration-runner-initial-schema) (the schema) then mirrors. [T-005](#t-005--level-inference) and
-[T-006](#t-006--city-normalisation) are also unblocked and need no database.
+**Next task: [T-005](#t-005--level-inference)** — level inference, where rule *order* is the
+specification and `"Cộng tác viên"` must not match `nhân viên`.
+[T-006](#t-006--city-normalisation) (city normalisation) and [T-007](#t-007--coverage-list) (the coverage list) are also
+unblocked; none of the three needs a database.
 
 **Outstanding housekeeping, not a task:** the working directory is still
 `C:\Users\LENOVO\CV_reviewer`, a leftover name from an unrelated earlier idea (PRD §1). Renaming it
@@ -105,7 +106,7 @@ OQ-7 → promoted to FR-29, OQ-8 (withdrawn), OQ-9 → Option B, AC-11.2 amended
 **Exit gate (PRD §17):** two banks — one static, one JavaScript-rendered — return real jobs on
 two consecutive scheduled runs with no manual intervention.
 
-**Progress:** `███░░░░░░░░░░░░░░░░░` 15% · 20 tasks
+**Progress:** `████░░░░░░░░░░░░░░░░` 20% · 20 tasks
 
 This phase builds almost the entire skeleton and only two banks. That is deliberate: everything
 here is paid for once and reused thirteen times.
@@ -192,17 +193,26 @@ task asserts markup semantics only, which is not the same thing.
 ---
 
 ### T-004 · Shared type definitions
-`todo` · `░░░░░░░░░░░░░░░░░░░░` 0%
+`done` · `████████████████████` 100%
 
-**Spec:** TECHNICAL_DESIGN §3.3
+**Spec:** TECHNICAL_DESIGN §3.3, §4, §5.1, §8.9 · ADR-0006
 **Depends on:** T-002
 
 The contract between crawler and website. Small, but everything downstream imports it.
 
-- [ ] `lib/types.ts` defines `RawListing`, `RawDetail`, `NormalisedJob`
-- [ ] Row types for `bank`, `job`, `crawl_run`, `crawl_result` mirror the migration exactly
-- [ ] Nullability matches the schema — `cities` and `posted_date` are genuinely optional
-- [ ] `npm run typecheck` clean
+- [x] `lib/types.ts` defines `RawListing`, `RawDetail`, `NormalisedJob`
+- [x] Row types for `bank`, `job`, `crawl_run`, `crawl_result` mirror §4's DDL — the migration does
+      not exist yet, so the design is the source of truth and **T-008 mirrors this file**
+- [x] Nullability matches the schema — `cities` and `posted_date` are genuinely optional, and
+      `job_expired_ck` is modelled as a discriminated union so the two states SQL forbids are
+      compile errors too
+- [x] `npm run typecheck` clean (also `eslint`, and 145 tests green)
+- [x] `Testcases.md` entry written — 29 cases, `lib/types.test.ts`
+
+**Three constraints this task hands to later tasks**, all recorded in their checklists below:
+`posted_date` is a `YYYY-MM-DD` string rather than a `Date` (§8.9 off-by-one), row types are
+`snake_case` so the DB client must not camelCase, and the empty-`cities` convention is enforced on
+the write path only until a CHECK closes it.
 
 ---
 
@@ -274,6 +284,13 @@ impossible in the component most likely to contain a bug. Do not skip it.
 - [ ] All six indexes from §4.4 created; no index on `level` (deliberate)
 - [ ] RLS enabled with no policies on every table; `anon` and `authenticated` revoked
 - [ ] Crawler role granted `SELECT/INSERT/UPDATE` only — no `DELETE`, no `DROP`
+- [ ] The CHECK value lists match the `const` enumerations in `lib/types.ts` exactly, and
+      `lib/types.test.ts` is **repointed from `docs/TECHNICAL_DESIGN.md` to the migration** — until
+      then those tests compare the types against the design, not against what the database enforces
+- [ ] Decide on `CHECK (cities IS NULL OR cardinality(cities) > 0)`. §4.2 forbids `'{}'` "by
+      convention" but nothing enforces it, which is why `JobRow.cities` cannot be typed non-empty
+      on the read path (T-004 finding 2). Adding it lets the type tighten; it is a migration
+      change, so it is a decision, not a default
 - [ ] `Testcases.md` entry written
 
 ---
@@ -284,9 +301,19 @@ impossible in the component most likely to contain a bug. Do not skip it.
 **Spec:** TECHNICAL_DESIGN §3.3, §7 · ADR-0002
 **Depends on:** T-008
 
+**Two constraints inherited from T-004.** Both make every row type in `lib/types.ts` wrong *while
+still compiling*, so neither fails loudly.
+
 - [ ] `lib/db.ts` exports two factories: crawler (direct, :5432) and web (pooler, :6543)
 - [ ] Pooled client sets `prepare: false` — required by transaction-mode pooling
 - [ ] Crawler client supports real transactions (`postgres` tagged templates)
+- [ ] **No camelCase `transform` is configured.** Row types are `snake_case` to mirror the columns;
+      a transform silently turns every one of them into `undefined` at runtime (T-004 finding 3)
+- [ ] **Verify what the client returns for a `date` column.** `posted_date` is typed as a
+      `YYYY-MM-DD` string, because a `date` has no instant and wrapping it in a `Date` forces a
+      timezone — §8.9's off-by-one, which would make FR-17's recency filter hide a job. If the
+      client returns `Date`, configure a parser for OID 1082. Unverifiable at T-004: the library
+      was not a dependency yet (T-004 finding 1)
 - [ ] A round-trip query succeeds against the live database
 - [ ] `Testcases.md` entry written
 

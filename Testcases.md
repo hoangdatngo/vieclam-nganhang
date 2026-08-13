@@ -327,3 +327,121 @@ preference, and preferences erode silently. These 57 cases are what make them ru
 5. **Tailwind's default palette is genuinely gone.** Verified directly in the compiled stylesheet:
    zero `oklch()` functions remain, which is how v4's default colours would appear. `text-red-500`
    now produces no styling rather than a colour that quietly bypasses §6.2.
+
+---
+
+## 2026-08-13 — Shared type definitions (T-004)
+
+**Code under test:** `lib/types.ts`
+**Test file:** `lib/types.test.ts`
+**Spec:** `docs/TECHNICAL_DESIGN.md` §3.3 (shared library), §4 (data model), §5.1 (crawl
+pipeline), §8.9 (time zones) · ADR-0006 · PRD FR-5, FR-8, AC-11.2, AC-12.2, AC-15.3, AC-19.2
+
+A types module fails in two distinct ways, so there are two kinds of assertion.
+
+**Runtime drift** — the `const` enumerations must match the schema's CHECK constraints. If they
+diverge, the crawler writes a value the database rejects, at 01:00, inside a transaction, on one
+bank. The design's DDL is parsed directly and compared, so the two cannot drift silently.
+
+**Type-level regressions** — asserted with `expectTypeOf`, and for cases that must be *rejected*,
+with `@ts-expect-error`. That direction is the important one: a positive assertion still passes if
+a union quietly collapses, whereas an unused `@ts-expect-error` is itself a compile error. These
+run under `tsc --noEmit`, not `npm test`.
+
+### Enumerations match the schema
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 1–4 | `LEVELS`, `JOB_STATUSES`, `CRAWL_RUN_STATUSES`, `CRAWL_RESULT_STATUSES` each equal the values in the correspondingly-named CHECK constraint, parsed out of `TECHNICAL_DESIGN.md` §4 | §4.2–§4.3 — a mismatch is a runtime insert failure, not a compile error | pass |
+| 5 | The constraint parser returns more than one value | Guards the vacuous case where a doc reformat makes cases 1–4 compare `[]` to `[]` and pass forever | pass |
+| 6–11 | No enumeration contains a duplicate | Cheap guard against a bad merge | pass |
+
+### Rules that must not be edited away
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 12 | `uncategorized` is in the level taxonomy | FR-8 — a wrong guess must never hide a job. Removing it makes the `NOT NULL DEFAULT` unsatisfiable | pass |
+| 13 | `EXPIRY_PERMITTING_STATUS` is `success` | ADR-0006 — the single rule standing between a broken paginator and 122 silently expired jobs | pass |
+| 14 | `blocked` and `failure` are distinct | §8.4 — a robots.txt disallow is not a breakage and must never alert | pass |
+| 15 | `degraded` and `ok` are distinct | AC-11.2 — the indicator advances on both, but FR-29's per-bank notice needs to tell them apart | pass |
+
+### `JobRow` models `job_expired_ck` as a discriminated union
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 16 | `status: "active"` narrows `expired_at` to `null` | §4.2 — the CHECK makes the mismatch unrepresentable in SQL; the type does the same in TS | pass |
+| 17 | `status: "expired"` narrows `expired_at` to `Date` | Means T-055 cannot render an expired saved job and forget the timestamp | pass |
+| 18 | Active-with-timestamp and expired-without-timestamp are both **compile errors** | The two states `job_expired_ck` forbids | pass |
+
+### Nullability matches the schema
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 19 | `cities` is `string[] \| null` | AC-15.3 — `null` means *undetermined*, not *none*, and those jobs stay reachable | pass |
+| 20 | `posted_date` is `string \| null`, **not** `Date` | §8.9 — see finding 1 | pass |
+| 21 | `description_html` and `description_text` are nullable | AC-19.2 — absent renders as absent, never as a placeholder | pass |
+| 22 | `level` is not nullable, and `null` is a compile error | FR-8 is enforced by the column, not by callers remembering | pass |
+| 23 | `title` is non-nullable | Every job has the bank's own words | pass |
+| 24 | `crawl_run.finished_at` is nullable | F-9 — a crawler that dies mid-run leaves the row open | pass |
+| 25 | `crawl_result.error` is nullable | Absent on success | pass |
+
+### `NormalisedJob` is the write path, not a row
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 26 | An empty `cities` array is a **compile error**, while `null` is allowed | §4.2 forbids `'{}'` by convention. On the write path we produce the value, so the convention is a type. The read path deliberately does not claim this — see finding 2 | pass |
+| 27 | `null` is still allowed for undetermined | AC-15.3 | pass |
+| 28 | It carries no `id`, `status`, `expired_at`, `first_seen_at` or `last_seen_run_id` | Those belong to the database and to the orchestrator; the run id is supplied at persist time so a normalised job cannot be attributed to the wrong run | pass |
+
+### Row types mirror the SQL columns
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 29 | Row types expose `bank_id` / `posted_date`, and **not** `bankId` / `postedDate` | See finding 3 | pass |
+
+### Not covered, and why
+
+- **That the migration matches.** `db/migrations/001_init.sql` does not exist yet (T-008). These
+  tests compare against the DDL *in the technical design*, which is the design of record but is
+  not what the database will actually enforce. **T-008 must repoint the parser at the migration**;
+  that is now in its checklist. Until then, a migration that disagrees with these types would not
+  be caught.
+- **Runtime shape of anything.** No value here is validated against a real database row — there is
+  no database. These types are assertions about what the schema *will* contain. The runtime
+  boundary is zod in T-011, which is where a wrong assumption actually surfaces.
+- **The doc parser is brittle by construction.** It regex-matches from a constraint name to the
+  first `))`. A reformat of §4 breaks it loudly, which is the intended failure — case 5 exists so
+  it cannot break *quietly*.
+- **`Platform` is stricter than the database.** The column is unconstrained `text`; the union is
+  the set the crawler writes, kept true by `scripts/seed-banks.ts` (T-017), not by a constraint.
+
+**Result:** 145 passed, 0 failed (29 new here; 116 pre-existing) · `npm test` (vitest 4.1.10) ·
+`tsc --noEmit` exit 0 · `eslint` exit 0 · production build clean
+
+### Findings
+
+1. **`posted_date` is typed as a `YYYY-MM-DD` string, not a `Date`, and this constrains T-009.**
+   A Postgres `date` carries no instant, so wrapping it in a JS `Date` forces an implicit timezone.
+   §8.9 names exactly this as a real off-by-one source: a job posted `2026-08-13` becomes the 12th
+   for an evening visitor once it round-trips through UTC, and FR-17's recency filter would then
+   silently hide it — the failure mode FR-8 and AC-15.3 exist to prevent, arriving through a
+   different door. **T-009 must verify what the `postgres` client actually returns for `date`
+   columns and configure a parser if it returns `Date`.** This could not be verified here: the
+   library is not a dependency yet. Added to T-009's checklist.
+2. **The empty-array convention is enforced on the write path only, deliberately.** §4.2 says
+   `cities = '{}'` is forbidden "by convention" — but no CHECK enforces it, so typing the read path
+   as non-empty would be a lie about what the database guarantees. `NormalisedJob` makes it a
+   compile error where we produce the value; `JobRow` stays honest. **T-008 can close the gap with
+   `CHECK (cities IS NULL OR cardinality(cities) > 0)`**, which would let the row type tighten too.
+   Recorded in T-008's checklist as a recommendation, not a decision — it changes the migration.
+3. **Row types are `snake_case` and that is load-bearing.** `postgres` (porsager) returns column
+   names untransformed. If T-009 enables a camelCase `transform`, every row type in this file
+   becomes wrong *while still compiling*, and the failure surfaces as `undefined` fields at
+   runtime. Case 29 pins the convention; T-009's checklist now names the constraint explicitly.
+4. **A JSDoc comment containing a glob closed the comment early.** Writing `` `**/*.ts` `` inside a
+   block comment ends it at the `*/`, and the file failed to parse. Trivial, but it is the fourth
+   time this session that prose *describing* a rule has broken the code enforcing it — the same
+   family as T-002 findings 4–5 and T-003 finding 2.
+5. **The `@ts-expect-error` mechanism was verified empirically, not assumed.** A scratch file with
+   a deliberately unused directive was compiled to confirm `tsc` reports TS2578, then deleted.
+   Without that, the eight negative type assertions could all have been silently inert.
