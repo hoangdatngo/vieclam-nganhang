@@ -98,7 +98,7 @@ OQ-7 → promoted to FR-29, OQ-8 (withdrawn), OQ-9 → Option B, AC-11.2 amended
 **Exit gate (PRD §17):** two banks — one static, one JavaScript-rendered — return real jobs on
 two consecutive scheduled runs with no manual intervention.
 
-**Progress:** `██░░░░░░░░░░░░░░░░░░` 8% · 20 tasks
+**Progress:** `██░░░░░░░░░░░░░░░░░░` 10% · 20 tasks
 
 This phase builds almost the entire skeleton and only two banks. That is deliberate: everything
 here is paid for once and reused thirteen times.
