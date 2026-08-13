@@ -113,8 +113,11 @@ clean repository. Each detector is checked in both directions.
 | 7–10 | `CV_folder/` flags the directory at root and nested; allows `docs/cv-policy.md` | §8.5 layer 1 bypassed by `git add -f` | pass |
 | 11–17 | `.env*` flags `.env`, `.env.local`, `.env.production`, `app/.env`; **allows `next-env.d.ts`** | §8.5 — `next-env.d.ts` is the obvious false positive and it is a tracked file, so a naive `\.env` substring test would fail the build forever | pass |
 | 18–20 | `.claude/agent-memory/` flags `user-profile.md`; allows `.claude/agents/` and `.claude/skills/` | T-002 finding, below | pass |
-| 21 | The secret-assignment pattern flags `SUPABASE_SERVICE_ROLE_KEY=eyJ…` and `: "sb_secret_123"`, but not prose or a markdown table cell naming the key | §8.5 secrets table | pass |
-| 22 | The connection-string pattern flags `postgresql://user:pw@host/db`, but not `postgresql://localhost:5432/postgres` or prose naming `DATABASE_URL` | §8.5 — credentials, not mentions | pass |
+| 21 | The secret-assignment pattern flags the service-role key followed by `=` or `:` and a JWT-shaped value, but not prose or a markdown table cell naming the key | §8.5 secrets table | pass |
+| 22 | The connection-string pattern flags a Postgres URL carrying `user:password@`, but not a credential-free `postgresql://localhost:5432/postgres`, nor prose naming `DATABASE_URL` | §8.5 — credentials, not mentions | pass |
+
+> The literal bad examples live in `test/repo-hygiene.test.ts` and are deliberately **not**
+> reproduced here — see finding 5.
 
 ### §8.5 layer 1 — personal files live outside the repository
 
@@ -188,5 +191,25 @@ clean repository. Each detector is checked in both directions.
    filesystem root`. Tooling artifact, not a code defect; `vitest` and `tsc` are unaffected. Worth
    knowing because the project's CI must run `next build` before `typecheck` (finding 1 of the
    entry above), so builds should be verified in a real checkout rather than a linked worktree.
-4. No defect was found in the repository itself. All three §8.5 layers hold, and the remote tree
+4. **The guard caught its own test log, on its first run against real content.** The first version
+   of this entry quoted the detectors' bad examples literally — an assignment of a JWT-shaped value
+   to the service-role key, and a `user:password@` connection string. Both are tracked file content,
+   so cases 34 and 35 failed on `Testcases.md` itself. The guard was right and the documentation
+   was careless.
+
+   `Testcases.md` was **not** added to the exclusion list. A real secret pasted into a test log is
+   precisely the accident this is meant to catch, and an exemption would have been a hole shaped
+   exactly like the next mistake. The examples were reworded instead; the literal strings live only
+   in `test/repo-hygiene.test.ts`, which is excluded because a detector's own fixtures must contain
+   the thing it detects.
+
+   This is also the only evidence so far that the guard fires on real content rather than on
+   synthetic input — the detector self-tests (cases 1–22) prove the patterns work, but this proves
+   the wiring does.
+
+5. **Anything documenting these patterns must avoid reproducing them.** That includes
+   `scripts/check-forbidden-files.ts` (T-033) and any ADR or README describing the rule. The
+   convention established here: describe the shape in prose, keep literal examples inside `test/`.
+
+6. No defect was found in the repository itself. All three §8.5 layers hold, and the remote tree
    was independently confirmed clean after the push.
