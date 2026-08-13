@@ -658,18 +658,41 @@ detection until T-062.
 ### T-033 · Continuous integration
 `todo` · `░░░░░░░░░░░░░░░░░░░░` 0%
 
-**Spec:** TECHNICAL_DESIGN §8.5 · `Testcases.md` finding 1
+**Spec:** TECHNICAL_DESIGN §8.5 · `Testcases.md` findings 1, 2, 4 and 5 (T-002 entry)
 **Depends on:** T-002
 
-**Known trap, already diagnosed:** `npm run typecheck` fails on a clean checkout until
-`next build` has run once, because `app/layout.tsx` uses `LayoutProps<"/">`, a type Next.js 16
-generates into `.next/types/`. CI must build before it typechecks or its first run fails for a
-reason that looks like a type error and is not.
+**Do not re-derive the forbidden-path rules — import them.** T-002 already implemented and tested
+the correct patterns in `test/repo-hygiene.test.ts`. Writing them a second time in
+`check-forbidden-files.ts` is how the two copies drift, and both traps below were hit *while
+deriving them the first time*. Extract them into `scripts/forbidden-paths.ts` and have the script
+and the test import from it. One definition, two callers.
+
+**Three known traps, all already paid for once:**
+
+1. **`typecheck` before `build`.** `npm run typecheck` fails on a clean checkout until `next build`
+   has run once — `app/layout.tsx` uses `LayoutProps<"/">`, a type Next.js 16 generates into
+   `.next/types/`. CI must build first or its first run fails for a reason that looks like a type
+   error and is not.
+2. **`.env` matched as a substring hits `next-env.d.ts`**, which is a tracked file. Anchor the
+   pattern (`(^|/)\.env($|\.)`) or CI fails on a clean checkout, permanently.
+3. **`SUPABASE_SERVICE_ROLE_KEY | nowhere` (§8.5) does not mean "no mention".** Read literally it
+   fails on `tasks.md` and `docs/TECHNICAL_DESIGN.md`, which name the key *in order to forbid it*.
+   The two properties §8.5 actually protects are: no **source** file references the key, and no
+   file assigns it a **value**. The spec wording is genuinely ambiguous — flagged for
+   `tech-architect`, not silently reinterpreted here.
+
+**Corollary convention:** anything documenting these rules must describe the pattern shape in prose
+and keep literal bad examples inside `test/`. Reproducing a realistic secret string in a tracked
+document trips the guard — that is finding 4, found the hard way, in this project's own test log.
 
 - [ ] `.github/workflows/ci.yml` runs `next build` **before** `typecheck`, then `vitest`
+- [ ] `scripts/forbidden-paths.ts` holds the patterns once; `test/repo-hygiene.test.ts` is
+      refactored to import them rather than define its own
 - [ ] `scripts/check-forbidden-files.ts` fails the build when `git ls-files` matches `*.pdf`,
       `CV_folder/`, `.env*`, or `.claude/agent-memory/` (the last added by T-002's finding —
       agent memory holds the maintainer's personal profile notes)
+- [ ] A clean checkout passes: `next-env.d.ts`, `tasks.md` and `docs/TECHNICAL_DESIGN.md` do **not**
+      trip the check (the three traps above, asserted rather than assumed)
 - [ ] The forbidden-file check verified by committing a dummy PDF on a branch and watching CI fail
 - [ ] `Testcases.md` entry written
 
