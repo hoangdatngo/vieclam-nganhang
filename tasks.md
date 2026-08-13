@@ -14,12 +14,12 @@ The plan of record. Owned by the `cto` agent; no other agent edits this file.
 ## Overall progress
 
 ```
-█░░░░░░░░░░░░░░░░░░░  3%
+█░░░░░░░░░░░░░░░░░░░  4%
 ```
 
 | Phase | Content | Tasks | Progress |
 |---|---|---|---|
-| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `██░░░░░░░░░░░░░░░░░░` 11% |
+| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `███░░░░░░░░░░░░░░░░░` 15% |
 | **P1** — Data foundation | Remaining 11 banks, alerting, CI | 14 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P2** — Public site | List, search, filters, detail, coverage pages | 16 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P3** — Accounts | Auth, save jobs, follow banks | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
@@ -32,8 +32,12 @@ public, `main`, three commits, 42 files. It holds the full specification set and
 module, `lib/normalize.ts`, verified by 24 passing tests. `app/layout.tsx` has been localised.
 The database, the crawler, and every page do not exist yet.
 
-**Next task: [T-003](#t-003--application-shell-replaces-the-create-next-app-scaffold)** — strip the starter page and apply the
-design tokens. [T-004](#t-004--shared-type-definitions) (shared types) is also unblocked and can be done in either order.
+The design system is live: `app/globals.css` carries the §8 theme, the shell has its landmarks and
+skip link, and 116 tests guard both the repository and the design-system bans.
+
+**Next task: [T-004](#t-004--shared-type-definitions)** — the shared type definitions, which
+[T-008](#t-008--database-supabase-project-migration-runner-initial-schema) (the schema) then mirrors. [T-005](#t-005--level-inference) and
+[T-006](#t-006--city-normalisation) are also unblocked and need no database.
 
 **Outstanding housekeeping, not a task:** the working directory is still
 `C:\Users\LENOVO\CV_reviewer`, a leftover name from an unrelated earlier idea (PRD §1). Renaming it
@@ -101,7 +105,7 @@ OQ-7 → promoted to FR-29, OQ-8 (withdrawn), OQ-9 → Option B, AC-11.2 amended
 **Exit gate (PRD §17):** two banks — one static, one JavaScript-rendered — return real jobs on
 two consecutive scheduled runs with no manual intervention.
 
-**Progress:** `██░░░░░░░░░░░░░░░░░░` 11% · 20 tasks
+**Progress:** `███░░░░░░░░░░░░░░░░░` 15% · 20 tasks
 
 This phase builds almost the entire skeleton and only two banks. That is deliberate: everything
 here is paid for once and reused thirteen times.
@@ -160,17 +164,30 @@ resolution of OQ-1; renaming a GitHub repository later is cheap.
 ---
 
 ### T-003 · Application shell replaces the create-next-app scaffold
-`todo` · `█████░░░░░░░░░░░░░░░` 25%
+`done` · `████████████████████` 100%
 
-**Spec:** FR-27 · NFR-9 · NFR-10 · DESIGN_GUIDELINES §5, §6, §8
+**Spec:** FR-27 · NFR-9 · NFR-10 · DESIGN_GUIDELINES §4.2, §4.4, §5, §6, §7.3, §8, §10.2, §10.6
 **Depends on:** T-002
 
-`app/page.tsx` still renders the Next.js starter page.
-
 - [x] `app/layout.tsx` uses `lang="vi"` and Vietnamese metadata
-- [ ] `app/page.tsx` no longer contains starter content
-- [ ] `app/globals.css` carries the design tokens and Tailwind theme from DESIGN_GUIDELINES §8
-- [ ] `npm run build` and `npm run lint` both clean
+- [x] `app/page.tsx` no longer contains starter content — states plainly that there is no data yet
+      rather than showing a fabricated list; becomes the real job list in T-038
+- [x] `app/globals.css` carries the design tokens and Tailwind theme from DESIGN_GUIDELINES §8,
+      including the `--color-*`/`--text-*` reset, the global focus ring and reduced-motion
+- [x] `npm run build` (Turbopack) and `npm run lint` both clean in a real checkout; `tsc` clean
+- [x] `Testcases.md` entry written — 57 cases, `test/design-system.test.ts`
+
+**Two guideline violations the scaffold carried, neither of them in the checklist above.**
+`layout.tsx` loaded Geist and Geist_Mono from `next/font/google` — webfonts are banned outright by
+§5.1 and P5, since the system stack already ships designed Vietnamese glyphs and a webfont is the
+largest avoidable cost against NFR-2's 3-second budget. `globals.css` carried a
+`prefers-color-scheme: dark` block, which §6.1 forbids in v1. Both removed, both now guarded by
+tests. They surfaced from reading the guidelines, not from the definition of done.
+
+**Deliberately not done here:** footer navigation to `/pham-vi-du-lieu` (T-045) and `/ve-du-lieu`
+(T-046) is absent until those routes exist — a footer link to a 404 is worse than no link. And the
+real accessibility verification (320px reflow, 200% zoom, keyboard order, axe) is **T-048**; this
+task asserts markup semantics only, which is not the same thing.
 
 ---
 

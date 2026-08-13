@@ -213,3 +213,117 @@ clean repository. Each detector is checked in both directions.
 
 6. No defect was found in the repository itself. All three §8.5 layers hold, and the remote tree
    was independently confirmed clean after the push.
+
+---
+
+## 2026-08-13 — Design-system shell (T-003)
+
+**Code under test:** `app/globals.css`, `app/layout.tsx`, `app/page.tsx`
+**Test file:** `test/design-system.test.ts`
+**Spec:** `docs/DESIGN_GUIDELINES.md` §4.2, §4.4, §5.1, §5.2, §5.4, §6.1, §6.2, §7.3, §8, §10.2,
+§10.6 · PRD FR-27 · NFR-9 · NFR-10 · NFR-2
+
+The guidelines ban several things *"in this codebase"* — webfonts, the `dark:` variant, the three
+tightest leading utilities, uppercase Vietnamese, arbitrary spacing. A ban nothing enforces is a
+preference, and preferences erode silently. These 57 cases are what make them rules.
+
+### §8 / §6.2 — the theme carries every contrast-verified token
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 1–22 | All 22 colour tokens are present with their **exact** hex values | §6.2 — every value was *computed* against WCAG 2.1, not chosen. Nudging `--color-fg-muted` one shade lighter drops it below 4.5:1 and nothing else in the project would notice. Changing a value here requires recomputing the ratio in the same commit | pass |
+| 23 | `--text-xs` is `0.8125rem` (13px), not Tailwind's 12px | §5.2 — below 13px, `ẻ` / `ẽ` / `ẹ` stop being reliably distinguishable on a mid-range Android screen | pass |
+| 24–29 | Every line height is exactly as specified **and** ≥ 1.35 | §5.2 — Vietnamese stacks two marks above the x-height and one below; 1.25 clips the upper mark against the line above | pass |
+| 30 | `--color-*: initial` and `--text-*: initial` are both present | §8 — without the reset, `text-red-500` and a 12px `text-xs` stay available | pass |
+| 31–34 | The four container widths (`64/48/42/24rem`) | §4.2 — the 42rem prose measure is what keeps a Vietnamese line near 70 characters | pass |
+| 35 | `color-scheme: light` is declared | §6.1 — without it some Android and desktop browsers force-darken form controls and contrast silently fails AA | pass |
+| 36 | Exactly one global `:focus-visible` ring using the accent token | §10.2 — applied once, never per-component | pass |
+| 37 | A `prefers-reduced-motion` block exists | §7.3 | pass |
+| 38 | `--font-sans` is the system stack and names no webfont | §5.1 | pass |
+
+### §5.1 / P5 — no webfont
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 39 | Nothing under `app/` or `components/` imports from `next/font` | §5.1 — the scaffold shipped Geist and Geist_Mono; a webfont is the largest avoidable cost against NFR-2's 3-second budget on 4G, and the system stack already ships designed Vietnamese glyphs | pass |
+| 40 | No `@font-face`, no `.woff`/`.woff2` reference, no Google Fonts host | §5.1 — closes the other routes to the same mistake | pass |
+
+### §6.1 — no dark mode in v1
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 41 | No `dark:` Tailwind variant anywhere | §6.1 — a partial dark mode is a bug factory; the states that break first are stale/expired/error, the ones nobody re-checks | pass |
+| 42 | No `prefers-color-scheme` block | §6.1 — the scaffold's `globals.css` had one; it is gone | pass |
+
+### §5.2 / §5.4 / §4.4 — banned utilities
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 43–45 | The three tightest leading utilities are unused | §5.2 — each clips stacked diacritics | pass |
+| 46 | `uppercase` is unused | §5.4 — `Ế Ộ Ữ Ằ` exceed cap height and clip in exactly the fixed-height containers a design system encourages | pass |
+| 47–49 | `tracking-wide` / `-wider` / `-widest` are unused | §5.4 — all exceed the 0.02em ceiling for Vietnamese | pass |
+| 50 | No arbitrary spacing value (`p-[13px]` and friends) | §4.4 — breaks the 4px scale the layout rests on | pass |
+
+### §10.6 — document semantics
+
+| # | What is asserted | Why (spec ref) | Result |
+|---|---|---|---|
+| 51 | `<html lang="vi">` | WCAG 3.1.1 — also drives Vietnamese screen-reader pronunciation, font selection and line breaking | pass |
+| 52 | `<header>`, `<main>` and `<footer>` landmarks are present | §10.6 | pass |
+| 53 | A skip link exists, targets the `id` on `<main>`, and appears **before** `<header>` in the DOM | §10.6 — it must be the first focusable element, and the target must actually resolve | pass |
+| 54 | The shell declares no `<h1>` | §10.6 — one `<h1>` per page, owned by the page, not the layout | pass |
+
+### The detector fires on known-bad input
+
+| # | What is asserted | Why | Result |
+|---|---|---|---|
+| 55 | A banned utility inside a real `className` is flagged, including behind a `sm:` variant | A matcher that never matches is indistinguishable from a clean codebase | pass |
+| 56 | A longer class merely *containing* the banned name is not flagged | Word-boundary correctness — `leading-tighter-custom` is not `leading-tight` | pass |
+| 57 | A banned name appearing only in a comment is not flagged | Finding 2 below | pass |
+
+### Not covered, and why
+
+- **Rendered contrast.** The tests assert the token *values* match the computed ratios in §6.2;
+  they do not re-derive the ratios, and they cannot see what a browser actually paints. A wrong
+  pairing — `fg-muted` text on `bg-muted` fill, never checked in §6.2 — would pass. The real check
+  is the greyscale-and-axe pass in T-048.
+- **320px reflow, 200% zoom, keyboard order.** NFR-9 and NFR-10 are asserted only at the level of
+  markup semantics. The shell is a single-column container with no fixed widths, so reflow is very
+  likely fine, but "likely fine" is not verification. **T-048 owns this** and must not be skipped
+  because these tests are green.
+- **That the page looks right.** Nothing here renders a component. These are static-analysis
+  assertions over source text.
+- **Vietnamese copy quality.** §11's register rules (no `Quý khách`, sentence case, no exclamation
+  marks) are not machine-checkable and were applied by hand.
+- **The comment stripper is naive.** It does not understand `//` inside a string literal, so a URL
+  in a string could hide a following banned utility on the same line. Judged acceptable: the
+  failure mode is a false *negative* on a line that would be obvious in review.
+
+**Result:** 116 passed, 0 failed (57 new here; 59 pre-existing) · `npm test` (vitest 4.1.10) ·
+`npm run build` clean with Turbopack in a real checkout · `tsc --noEmit` exit 0 · `eslint` exit 0
+
+### Findings
+
+1. **The scaffold violated two guidelines, and neither was in T-003's checklist.** `app/layout.tsx`
+   loaded `Geist` and `Geist_Mono` from `next/font/google` — webfonts are banned outright by §5.1
+   and P5 — and `app/globals.css` carried a `prefers-color-scheme: dark` block, which §6.1 forbids
+   in v1. Both were removed and both are now guarded by cases 39–42. Worth noting that the task's
+   definition of done said only *"no longer contains starter content"*; the specific violations
+   surfaced from reading the guidelines rather than from the checklist.
+2. **A comment explaining a rule trips the test enforcing that rule — three times now.** The shell
+   carries `{/* Not an <h1>: each page owns its own single <h1> */}`, which failed case 54 on the
+   first run. This is the same shape as T-002 findings 4 and 5. The durable fix applied here is
+   mechanical rather than editorial: every scan strips comments first, and case 57 asserts the
+   stripper works. `app/globals.css`'s note about leading utilities was also reworded to name them
+   in prose, per the T-002 convention.
+3. **`npm run build` cannot be verified inside a git worktree whose `node_modules` is a junction.**
+   Confirms T-002 finding 3 from the other direction: `next build --webpack` succeeds there, and
+   only Turbopack rejects the symlink. The default `npm run build` was therefore verified in the
+   real checkout, which is the only run that counts for the definition of done.
+4. **The machine ran out of disk during this task** — `ENOSPC`, 0 bytes free on `C:`, which killed
+   an `npm install`. Not a code defect, but it will break builds, Next.js caches and git in
+   unpredictable ways. 1.33 GB was reclaimed by clearing the npm cache; free space is ~1.7 GB,
+   which is still low for a Next.js project.
+5. **Tailwind's default palette is genuinely gone.** Verified directly in the compiled stylesheet:
+   zero `oklch()` functions remain, which is how v4's default colours would appear. `text-red-500`
+   now produces no styling rather than a colour that quietly bypasses §6.2.
