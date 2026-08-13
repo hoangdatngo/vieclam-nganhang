@@ -53,3 +53,7 @@ next-env.d.ts
 # The agent definitions and skills in .claude/ ARE committed; only memory is not.
 /.claude/agent-memory/
 /.claude/settings.local.json
+
+# Git worktrees created by tooling live inside the repo directory and each holds
+# a full copy of the tree. Local state, never committed.
+/.claude/worktrees/

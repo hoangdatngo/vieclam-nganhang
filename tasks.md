@@ -4,8 +4,8 @@ The plan of record. Owned by the `cto` agent; no other agent edits this file.
 
 | Field | Value |
 |---|---|
-| **Version** | 1.0 |
-| **Baselined** | 2026-08-13 |
+| **Version** | 1.1 |
+| **Baselined** | 2026-08-13 · re-baselined after T-002 |
 | **Sources** | [`PRD.md`](PRD.md) v0.3 · [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) v1.0 · `docs/adr/0001`–`0006` · [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md) · [`Testcases.md`](Testcases.md) |
 | **Total tasks** | 70 across 6 phases |
 
@@ -14,24 +14,29 @@ The plan of record. Owned by the `cto` agent; no other agent edits this file.
 ## Overall progress
 
 ```
-░░░░░░░░░░░░░░░░░░░░  2%
+█░░░░░░░░░░░░░░░░░░░  3%
 ```
 
 | Phase | Content | Tasks | Progress |
 |---|---|---|---|
-| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `██░░░░░░░░░░░░░░░░░░` 8% |
+| **P0** — Spike | Shared libraries, database, crawler skeleton, 2 banks | 20 | `██░░░░░░░░░░░░░░░░░░` 10% |
 | **P1** — Data foundation | Remaining 11 banks, alerting, CI | 14 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P2** — Public site | List, search, filters, detail, coverage pages | 16 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P3** — Accounts | Auth, save jobs, follow banks | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P4** — Launch | Domain, deploy, analytics, health monitoring | 8 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 | **P5** — Observe | 30 days of real data; tune the guesses | 4 | `░░░░░░░░░░░░░░░░░░░░` 0% |
 
-**Where the project actually is:** a Next.js 16 scaffold with one finished module. `lib/normalize.ts`
-is written and verified (24 tests). `app/layout.tsx` has been localised. Everything else —
-the repository itself, the database, the crawler, every page — does not exist yet.
+**Where the project actually is:** a git repository on `main` with one commit, holding the full
+specification set and one finished module — `lib/normalize.ts`, verified by 24 passing tests.
+`app/layout.tsx` has been localised. The database, the crawler, and every page do not exist yet.
 
-**Next task: [T-002](#t-002--repository-initialised-public-with-no-personal-data-in-it).** It is first because it is the only
-irreversible one in P0: a CV PDF committed once to a public repository stays in its history forever.
+**Waiting on you: [T-002](#t-002--repository-initialised-public-with-no-personal-data-in-it) needs a GitHub repository.** Everything
+local is done and the tree is verified clean. Create a **public** repo (suggested name
+`vieclam-nganhang`), then `git remote add origin <url> && git push -u origin main`.
+
+**Next buildable tasks, in order:** [T-003](#t-003--application-shell-replaces-the-create-next-app-scaffold) (strip the starter
+page, apply design tokens) and [T-004](#t-004--shared-type-definitions) (shared types). Both list T-002 as a dependency,
+which is satisfied by the local repository existing — neither needs the push.
 
 ---
 
@@ -118,10 +123,12 @@ NFD-and-strip fold silently fails on it — which is why this was the first comm
 ---
 
 ### T-002 · Repository initialised, public, with no personal data in it
-`todo` · `████████░░░░░░░░░░░░` 40%
+`blocked` · `█████████████████░░░` 83%
 
 **Spec:** TECHNICAL_DESIGN §8.5 · ADR-0003 · F-14
 **Depends on:** —
+**Blocked on:** the GitHub repository does not exist. `gh` is not installed on this machine and no
+remote is configured. Every local step is done and verified; only the push remains.
 
 **The only irreversible task in P0.** The repository must be public for the Actions free-tier
 minutes policy, and a file committed once and later removed stays in history permanently. Do
@@ -129,9 +136,22 @@ this before anything else is committed.
 
 - [x] `CV_folder/` no longer exists inside the repository directory
 - [x] `.gitignore` covers `CV_folder/` and `.env*`
-- [ ] `.gitignore` also covers `*.pdf`
-- [ ] `git init`, initial commit, pushed to a **public** GitHub repository
-- [ ] `git ls-files` inspected by eye: no PDF, no `.env`, no CV, no `tsbuildinfo`
+- [x] `.gitignore` also covers `*.pdf`
+- [x] `git init` on `main`; initial commit `b43ae82`, 42 files, working tree clean
+- [ ] Pushed to a **public** GitHub repository
+- [x] `git ls-files` inspected: zero matches for `*.pdf`, `CV_folder`, `.env`, `agent-memory`,
+      `node_modules`, `*.tsbuildinfo` across all 42 tracked files
+
+**Finding — personal data that is not a PDF.** `.claude/agent-memory/` holds agent working memory,
+including `user-profile.md` files describing the maintainer's job-search status and circumstances.
+Harmless locally; must not enter a public repository. Now excluded by `.gitignore`, and T-033's CI
+check extended to cover it. The agent definitions and skills under `.claude/` **are** committed —
+they are project assets. Only the memory directory is excluded.
+
+**Repository name.** The directory is `CV_reviewer`, a leftover from an unrelated earlier idea
+(PRD §1). It is a poor public name and actively misleading — it suggests the repository contains
+CVs. Recommended: **`vieclam-nganhang`**, matching `package.json`. This is a working name, not a
+resolution of OQ-1; renaming a GitHub repository later is cheap.
 
 ---
 
@@ -330,6 +350,11 @@ the only thing standing between that failure and silent data loss.
 
 The highest-leverage adapter in the project: four of thirteen banks run on this platform, so
 this parser is written once and reused three more times in T-021.
+
+**Watch the line endings.** Git on this machine converts LF to CRLF on checkout. Recorded HTML
+fixtures are committed here and parsed by tests that also run on Linux CI runners, so add
+`*.html binary` (or `-text`) to a `.gitattributes` before recording the first fixture — otherwise
+a fixture test can pass locally and fail in CI for reasons that look like a parser bug.
 
 - [ ] `crawler/adapters/successfactors.ts` discovers and paginates a listing
 - [ ] `crawler/banks/vietcombank.ts` config; static source, ~60 jobs across 3 pages
@@ -639,7 +664,8 @@ reason that looks like a type error and is not.
 
 - [ ] `.github/workflows/ci.yml` runs `next build` **before** `typecheck`, then `vitest`
 - [ ] `scripts/check-forbidden-files.ts` fails the build when `git ls-files` matches `*.pdf`,
-      `CV_folder/`, or `.env*`
+      `CV_folder/`, `.env*`, or `.claude/agent-memory/` (the last added by T-002's finding —
+      agent memory holds the maintainer's personal profile notes)
 - [ ] The forbidden-file check verified by committing a dummy PDF on a branch and watching CI fail
 - [ ] `Testcases.md` entry written
 
